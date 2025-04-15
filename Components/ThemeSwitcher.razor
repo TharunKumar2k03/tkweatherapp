@@ -1,0 +1,14 @@
+<button @onclick="ToggleTheme">Toggle Theme</button>
+
+@code {
+    private bool isDarkTheme = false;
+
+    private async Task ToggleTheme()
+    {
+        isDarkTheme = !isDarkTheme;
+        await JS.InvokeVoidAsync("setTheme", isDarkTheme ? "dark" : "light");
+    }
+
+    [Inject] private IJSRuntime? JS { get; set; }
+
+}

@@ -1,0 +1,421 @@
+@page "/guest"
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject HttpClient HttpClient
+@inject ISnackbar Snackbar
+@using MudBlazor
+@implements IDisposable
+
+<div class="background-image">
+    <div class="guest-container">
+        <!-- Current Weather Card -->
+        <div class="current-weather-card">
+            @if (isLoadingLocation)
+            {
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+                <span>Detecting location...</span>
+            }
+            else if (!string.IsNullOrEmpty(locationError))
+            {
+                <span class="location-error">@locationError</span>
+                <button class="retry-button" @onclick="GetCurrentLocationAsync">
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
+                    Retry
+                </button>
+            }
+            else if (currentWeather != null)
+            {
+                <div>
+                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Class="location-icon" />
+                    <span>Current Location: @currentWeather.name</span>
+                </div>
+                <div class="temperature">@currentWeather.main.temp.ToString("F1")°C</div>
+                <div class="condition">@(currentWeather.weather.FirstOrDefault()?.description ?? "Clear Sky")</div>
+            }
+        </div>
+    </div>
+
+    <!-- Center Content Container -->
+    <div class="center-content">
+        <!-- Search Box -->
+        <div class="search-box">
+            <div class="search-input-container">
+                <MudTextField @bind-Value="searchQuery" 
+                            Label="Search city" 
+                            Variant="Variant.Outlined"
+                            Class="search-input"
+                            OnKeyDown="@(async (e) => { if (e.Key == "Enter") await SearchCity(); })" />
+                <MudIconButton Icon="@Icons.Material.Filled.Search" 
+                             Color="Color.Inherit" 
+                             OnClick="SearchCity"
+                             Class="search-button" />
+            </div>
+            
+            @if (searchedWeather != null)
+            {
+                <div class="search-result">
+                    <h3>@searchedWeather.name</h3>
+                    <div class="temperature">@searchedWeather.main.temp.ToString("F1")°C</div>
+                    <div class="condition">@(searchedWeather.weather.FirstOrDefault()?.description ?? "Clear Sky")</div>
+                </div>
+            }
+        </div>
+
+        <!-- Welcome Text -->
+        <div class="guest-content">
+            <h1>Welcome Guest!</h1>
+            <p>Please login to access all the features.</p>
+            <p class="search-limit">Searches remaining: @(3 - searchCount)</p>
+        </div>
+    </div>
+
+    <!-- Login Button -->
+    <div class="login-button-container">
+        <button class="login-button" @onclick="NavigateToLogin">
+            <MudIcon Icon="@Icons.Material.Filled.Login" Class="mr-2" />
+            Login
+        </button>
+    </div>
+</div>
+
+@code {
+    private bool isLoadingLocation = false;
+    private string? locationError;
+    private CurrentWeatherResponse? currentWeather;
+    private CurrentWeatherResponse? searchedWeather;
+    private string searchQuery = "";
+    private int searchCount = 0;
+    private string apiKey = "902a7076f0a33886f94bd38cc08b4f24";
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to location change events
+        NavigationManager.LocationChanged += HandleLocationChanged;
+        base.OnInitialized();
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var newPath = new Uri(e.Location).LocalPath.ToLower();
+        
+        // Allow navigation to guest and login pages
+        if (newPath != "/guest" && newPath != "/")
+        {
+            // Prevent navigation and show message
+            NavigationManager.NavigateTo("/guest", false);
+            Snackbar.Add("Please login to access all features!", Severity.Warning);
+        }
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from the event when component is disposed
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetCurrentLocationAsync();
+    }
+
+    private async Task GetCurrentLocationAsync()
+    {
+        try
+        {
+            isLoadingLocation = true;
+            locationError = null;
+            StateHasChanged();
+
+            var location = await JSRuntime.InvokeAsync<LocationResult>("getLocationAsync");
+            await GetWeatherForLocationAsync(location.Latitude, location.Longitude);
+        }
+        catch (Exception ex)
+        {
+            locationError = ex.Message;
+        }
+        finally
+        {
+            isLoadingLocation = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GetWeatherForLocationAsync(double lat, double lon)
+    {
+        try
+        {
+            var url = $"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={apiKey}";
+            currentWeather = await HttpClient.GetFromJsonAsync<CurrentWeatherResponse>(url);
+        }
+        catch (Exception ex)
+        {
+            locationError = "Error fetching weather data";
+        }
+    }
+
+    private async Task SearchCity()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+
+        if (searchCount >= 3)
+        {
+            Snackbar.Add("Login to enjoy unlimited searches!", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var url = $"https://api.openweathermap.org/data/2.5/weather?q={searchQuery}&units=metric&appid={apiKey}";
+            searchedWeather = await HttpClient.GetFromJsonAsync<CurrentWeatherResponse>(url);
+            searchCount++;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("City not found!", Severity.Error);
+        }
+    }
+
+    private void NavigateToLogin()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    public class LocationResult
+    {
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double Accuracy { get; set; }
+    }
+
+    public class CurrentWeatherResponse
+    {
+        public string name { get; set; } = string.Empty;
+        public MainData main { get; set; } = new MainData();
+        public List<WeatherData> weather { get; set; } = new List<WeatherData>();
+    }
+
+    public class MainData
+    {
+        public double temp { get; set; }
+    }
+
+    public class WeatherData
+    {
+        public string description { get; set; } = string.Empty;
+    }
+}
+
+<style>
+    .page-container {
+        background-color: #000000;
+        min-height: 100vh;
+        width: 100%;
+    }
+
+    .guest-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #1e3799 0%, #0c2461 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .current-weather-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 15px;
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        position: fixed;
+        top: 20px;
+        left: 150px;
+        min-width: 250px;
+    }
+
+    .temperature {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+
+    .condition {
+        text-transform: capitalize;
+    }
+
+    .location-error {
+        color: #ff6b6b;
+    }
+
+    .retry-button {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        padding: 4px 12px;
+        border-radius: 15px;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+
+    .retry-button:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .location-icon {
+        animation: pulse 2s infinite;
+    }
+
+    .login-button-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .login-button {
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .login-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+    }
+
+    @@keyframes pulse {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.7;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .center-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+        z-index: 1000;
+    }
+
+    .search-box {
+        background: rgba(216, 210, 210, 0.405);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 15px;
+        color: white;
+        border: 1px solid rgb(255, 255, 255);
+        min-width: 300px;
+    }
+
+    .guest-content {
+        text-align: center;
+        color: white;
+        margin-top: 20px;
+    }
+
+    .search-result {
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    .search-limit {
+        margin-top: 20px;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .search-result h2 {
+        margin: 0;
+        color: white;
+    }
+
+    .search-input-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .search-input {
+        flex: 1;
+    }
+
+    .search-button {
+        color: white;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .search-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+
+    ::deep .search-input .mud-input {
+        color: white !important;
+    }
+
+    ::deep .search-input .mud-input-label {
+        color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    ::deep .search-input .mud-input-outlined {
+        border-color: rgb(255, 255, 255) !important;
+    }
+
+    /* Add this new style to hide the sidebar toggler in Guest page */
+    ::deep .mud-layout-drawer-toggle {
+        display: none !important;
+    }
+</style>
+
+<style>
+    .background-image {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-image: url('images/pexels-pixabay-259698.jpg');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        margin: 0;
+        padding: 0;
+        overflow-y: auto;
+    }
+
+    .guest-container {
+        position: relative;
+        z-index: 1;
+        background: transparent;
+    }
+</style>

@@ -1,0 +1,85 @@
+@page "/relax"
+@using MudBlazor
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Relax</PageTitle>
+
+<div class="relax-container">
+    @if (!showVideo)
+    {
+        <div class="intro-message @(fadeOut ? "fade-out" : "")">
+            <MudIcon Icon="@Icons.Material.Filled.Headphones" Style="font-size: 4rem;" />
+            <h2>USE HEADPHONES FOR THE BEST EXPERIENCE</h2>
+        </div>
+    }
+    else
+    {
+        <video class="background-video" autoplay loop muted>
+            <source src="videos/space-video.mp4" type="video/mp4">
+        </video>
+
+        <audio @ref="audioPlayer" loop>
+            <source src="audio/calm-space.mp3" type="audio/mp3">
+        </audio>
+    }
+</div>
+
+<style>
+    .relax-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+        overflow: hidden;
+    }
+
+    .intro-message {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        text-align: center;
+        opacity: 1;
+        transition: opacity 1s ease;
+    }
+
+    .intro-message.fade-out {
+        opacity: 0;
+    }
+
+    .background-video {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+    }
+</style>
+
+@code {
+    private bool showVideo = false;
+    private bool fadeOut = false;
+    private ElementReference audioPlayer;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(2000);
+            fadeOut = true;
+            StateHasChanged();
+            
+            await Task.Delay(1000);
+            showVideo = true;
+            StateHasChanged();
+
+            await Task.Delay(100);
+            await JSRuntime.InvokeVoidAsync("eval", "document.querySelector('audio').play()");
+        }
+    }
+}

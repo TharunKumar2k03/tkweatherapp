@@ -1,0 +1,145 @@
+﻿@using MudBlazor
+@using Supabase.Gotrue
+@using TheWeatherApp.Services
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+
+<MudThemeProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<div class="layout-container">
+    @{
+        var currentPath = NavigationManager.Uri.ToLower();
+        var isHomeOrGuest = currentPath.EndsWith("/") || currentPath.EndsWith("/guest");
+    }
+
+    @if (!isHomeOrGuest)
+    {
+        <!-- Top-right buttons -->
+        <div class="top-right-buttons">
+            <MudIconButton Icon="@(isDarkTheme ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                          Color="Color.Inherit"
+                          OnClick="ToggleTheme" />
+            
+            <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <ActivatorContent>
+                    <MudIconButton Icon="@Icons.Material.Filled.Person" 
+                                 Color="Color.Inherit" 
+                                 Class="profile-button" />
+                </ActivatorContent>
+                <ChildContent>
+                    <div class="px-4 py-2">
+                        <MudText Typo="Typo.body1">@currentUser?.Email</MudText>
+                    </div>
+                    <MudDivider />
+                    <MudMenuItem OnClick="SignOut">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Logout" Class="mr-2" />
+                            Sign Out
+                        </div>
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </div>
+
+        <!-- Sidebar Toggle Button -->
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                      Color="Color.Inherit"
+                      OnClick="ToggleSidebar"
+                      Class="sidebar-toggle" />
+    }
+
+    <!-- Sidebar -->
+    <NavMenu />
+
+    <!-- Main Content -->
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+<style>
+    .layout-container {
+        background-color: #000000;
+        min-height: 100vh;
+        width: 100%;
+    }
+
+    .top-right-buttons {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1001;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .top-right-buttons ::deep .mud-icon-button,
+    .sidebar-toggle {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .top-right-buttons ::deep .mud-icon-button:hover,
+    .sidebar-toggle:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+
+    .sidebar-toggle {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 1001;
+    }
+
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+        padding-top: 4rem;
+    }
+
+    /* Add styles for the profile menu */
+    .profile-button {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .profile-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+</style>
+
+@code {
+    private bool isDarkTheme = false;
+    private bool sidebarOpen = true;
+    private User? currentUser => AuthService.GetUser();
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private async Task ToggleTheme()
+    {
+        isDarkTheme = !isDarkTheme;
+        await JS.InvokeVoidAsync("setTheme", isDarkTheme ? "dark" : "light");
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.SignOut();
+        NavigationManager.NavigateTo("/");
+    }
+}

@@ -1,0 +1,326 @@
+@page "/favourites"
+@using TheWeatherApp.Services
+@using Supabase.Gotrue
+@using TheWeatherApp.Models
+@using MudBlazor
+@inject AuthService AuthService
+@inject HttpClient HttpClient
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+@inject CacheService CacheService
+@inject NavigationManager NavigationManager
+
+<div class="background-image">
+    <MudContainer Class="weather-page">
+        <h2 class="favourites-title">Your Favourite Cities</h2>
+
+        @if (cityWeather == null || isLoading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (!cityWeather.Any())
+        {
+            <div class="no-favourites">
+                <MudIcon Icon="@Icons.Material.Filled.Favorite" />
+                <p>No favourite cities yet. Add some from the Weather page!</p>
+            </div>
+        }
+        else
+        {
+            <div class="favourites-grid">
+                @foreach (var city in cityWeather)
+                {
+                    <div class="favourite-card">
+                        <div class="card-header">
+                            <h3>@city.CityName</h3>
+                            <div class="actions">
+                                <span class="added-date">Added on @city.DateAdded.ToString("MMM dd, yyyy HH:mm")</span>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                             Color="Color.Error" 
+                                             OnClick="@(() => RemoveFromFavourites(city.CityName))" />
+                            </div>
+                        </div>
+                        <div class="weather-info">
+                            <div class="temp">@Math.Round(city.Temperature, 1)°C</div>
+                            <div class="condition">@city.Condition</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </MudContainer>
+</div>
+
+<style>
+    .background-image {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-image: url('images/pexels-pixabay-259698.jpg');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        margin: 0;
+        padding: 0;
+        overflow-y: auto;
+    }
+
+    .favourites-title {
+        color: white;
+        text-align: center;
+        margin: 2rem 0;
+        font-weight: 500;
+    }
+
+    .favourite-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        color: white;
+        margin: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .favourite-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 40px 0 rgba(31, 38, 135, 0.4);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .card-header h3 {
+        color: white;
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 500;
+    }
+
+    .actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5rem;
+    }
+
+    .added-date {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.8);
+        opacity: 0.8;
+    }
+
+    .weather-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+    }
+
+    .temp {
+        font-size: 2.5rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .condition {
+        font-size: 1.2rem;
+        color: rgba(255, 255, 255, 0.8);
+        text-transform: capitalize;
+    }
+
+    .no-favourites {
+        text-align: center;
+        color: white;
+        padding: 2rem;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin: 2rem;
+    }
+
+    .favourites-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem;
+    }
+
+    .weather-page {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        padding: 20px;
+        background: transparent !important;
+    }
+</style>
+
+@code {
+    private string ApiKey = "902a7076f0a33886f94bd38cc08b4f24";
+
+    public class UserFavorites
+    {
+        public string Email { get; set; } = string.Empty;
+        public List<string> FavoriteCities { get; set; } = new List<string>();
+    }
+
+    public class FavoriteWeather
+    {
+        public string Email { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+    }
+
+    public class CityWeather
+    {
+        public string CityName { get; set; } = string.Empty;
+        public double Temperature { get; set; }
+        public string Condition { get; set; } = string.Empty;
+        public DateTime DateAdded { get; set; } = DateTime.UtcNow;
+    }
+
+    public class CurrentWeatherResponse
+    {
+        public Main main { get; set; }
+        public List<Weather> weather { get; set; }
+    }
+
+    public class Main
+    {
+        public double temp { get; set; }
+        public int humidity { get; set; }
+    }
+
+    public class Weather
+    {
+        public string description { get; set; }
+    }
+
+    private List<CityWeather> cityWeather = new();
+    private bool isLoading = false;
+    private User? currentUser;
+    private Supabase.Client? supabaseClient;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = AuthService.GetUser();
+        if (currentUser != null)
+        {
+            supabaseClient = AuthService.GetSupabaseClient();
+            await LoadFavoriteCities();
+        }
+    }
+
+    private async Task LoadFavoriteCities()
+    {
+        if (currentUser == null) return;
+        isLoading = true;
+
+        try
+        {
+            var response = await HttpClient.GetAsync($"https://tkweatherapp-backend-production.up.railway.app/favorites/{currentUser.Email}");
+            if (response.IsSuccessStatusCode)
+            {
+                var userFavorites = await response.Content.ReadFromJsonAsync<UserFavorites>();
+                await GetWeatherForCities(userFavorites?.FavoriteCities ?? new List<string>());
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading favorites: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RemoveFromFavourites(string cityName)
+    {
+        try
+        {
+            var favoriteWeather = new FavoriteWeather
+            {
+                Email = currentUser.Email,
+                City = cityName
+            };
+
+            var response = await HttpClient.PostAsJsonAsync("https://tkweatherapp-backend-production.up.railway.app/favorites/remove", favoriteWeather);
+            if (response.IsSuccessStatusCode)
+            {
+                cityWeather.RemoveAll(w => w.CityName == cityName);
+                Snackbar.Add($"Removed {cityName} from favorites", Severity.Success);
+                StateHasChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to remove: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error removing favorite: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task GetWeatherForCities(List<string> cities)
+    {
+        foreach (var city in cities)
+        {
+            try
+            {
+                var response = await HttpClient.GetFromJsonAsync<CurrentWeatherResponse>(
+                    $"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={ApiKey}&units=metric");
+
+                if (response != null)
+                {
+                    cityWeather.Add(new CityWeather
+                    {
+                        CityName = city,
+                        Temperature = response.main.temp,
+                        Condition = response.weather?.FirstOrDefault()?.description ?? "Unknown"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching weather for {city}: {ex.Message}");
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && currentUser != null)
+        {
+            await CacheService.SaveUserState(NavigationManager.Uri, new { 
+                FavoriteCities = cityWeather.Select(c => new {
+                    CityName = c.CityName,
+                    Temperature = c.Temperature,
+                    Condition = c.Condition,
+                    DateAdded = c.DateAdded
+                }).ToList()
+            });
+        }
+    }
+
+    private async Task RestoreState()
+    {
+        var state = await CacheService.GetUserState<dynamic>();
+        if (state != null && state.FavoriteCities != null)
+        {
+            cityWeather = state.FavoriteCities.ToObject<List<CityWeather>>();
+            StateHasChanged();
+        }
+    }
+}

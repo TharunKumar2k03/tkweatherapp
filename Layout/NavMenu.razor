@@ -1,0 +1,104 @@
+﻿@using MudBlazor
+@inject NavigationManager NavigationManager
+
+<div class="nav-container">
+    <!-- Fixed Toggle Button -->
+    <MudIconButton Icon="@Icons.Material.Filled.Menu" 
+                   Color="Color.Inherit" 
+                   Edge="Edge.Start" 
+                   OnClick="ToggleDrawer"
+                   Class="toggle-button" />
+
+    <!-- Drawer -->
+    <MudDrawer Open="@isOpen" 
+               ClipMode="DrawerClipMode.Always" 
+               Elevation="1" 
+               Variant="@DrawerVariant.Persistent"
+               Class="sidebar"
+               Style="width: 140px;">
+        <MudNavMenu Class="nav-menu">
+            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+            <MudNavLink Href="/weather" Icon="@Icons.Material.Filled.Cloud">Weather</MudNavLink>
+            <MudNavLink Href="/favourites" Icon="@Icons.Material.Filled.Favorite">Favourites</MudNavLink>
+            <MudNavLink Href="/relax" Icon="@Icons.Material.Filled.Spa">Relax</MudNavLink>
+            <MudNavLink Href="/guest" Icon="@Icons.Material.Filled.Person">Guest</MudNavLink>    
+        </MudNavMenu>
+    </MudDrawer>
+</div>
+
+<style>
+    .nav-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        z-index: 1100;
+    }
+
+    .toggle-button {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 1200;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+        color: white;
+    }
+
+    .toggle-button:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+
+    .sidebar {
+        height: 100vh;
+        background-color: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(255, 255, 255, 0.2);
+        padding-top: 4rem;
+        position: fixed;
+    }
+
+    ::deep .mud-drawer {
+        height: 100vh !important;
+        position: fixed;
+        width: 200px !important;
+    }
+
+    ::deep .mud-drawer-content {
+        height: 100vh !important;
+        width: 200px !important;
+    }
+
+    .nav-menu {
+        padding-top: 1rem;
+    }
+
+    .mud-nav-link {
+        color: white !important;
+        margin: 4px 8px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    .mud-nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .mud-nav-link.active {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+    }
+</style>
+
+@code {
+    private bool isOpen = false;
+
+    private void ToggleDrawer()
+    {
+        isOpen = !isOpen;
+    }
+}
+

@@ -1,0 +1,191 @@
+@page "/"
+@using TheWeatherApp.Services
+@using TheWeatherApp.Shared
+@using Supabase.Gotrue
+@using MudBlazor
+
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Home</PageTitle>
+
+<div class="image-container">
+    <img src="images/pexels-pixabay-259698.jpg" alt="Background Image" id="bg-image" />
+    
+</div>
+
+<style>
+    .image-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: #000000;
+    }
+
+    #bg-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+</style>
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-danger">@Message</div>
+}
+
+@if (!ShowingCacheDialog)
+{
+    @if (ShowLoginPopup)
+    {
+        <div class="overlay active">
+            <div class="auth-popup">
+                <h2>Login</h2>
+                <input type="email" @bind="Email" placeholder="Enter email..." />
+                <input type="password" @bind="Password" placeholder="Enter password..." />
+                <button @onclick="PerformLogin">Login</button>
+                <p>Don't have an account?</p>
+                <button class="secondary" @onclick="ShowSignUpForm">Sign Up</button>
+                <div class="skip-link">
+                    <span @onclick="NavigateToGuest" style="cursor: pointer; color: #000000; font-size: 1.2rem;">
+                        Skip for now
+                    </span>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (ShowSignUp)
+    {
+        <div class="overlay active">
+            <div class="auth-popup">
+                <h2>Sign Up</h2>
+                <input type="text" @bind="FirstName" placeholder="First Name" />
+                <input type="text" @bind="LastName" placeholder="Last Name" />
+                <input type="email" @bind="Email" placeholder="Email" />
+                <input type="password" @bind="Password" placeholder="Enter password..." />
+                <button @onclick="PerformSignUp">Sign Up</button>
+                <p>Already have an account?</p>
+                <button class="secondary" @onclick="ShowLoginForm">Back to Login</button>
+                <div class="skip-link">
+                    <span @onclick="NavigateToGuest" style="cursor: pointer; color: #000000; font-size: 1.2rem;">
+                        Skip for now
+                    </span>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string Message = "";
+    private string Email = "";
+    private string Password = "";
+    private string FirstName = "";
+    private string LastName = "";
+    private bool ShowLoginPopup = false;
+    private bool ShowSignUp = false;
+    private bool ShowingCacheDialog = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var lastPath = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "lastPath");
+        
+        if (!string.IsNullOrEmpty(lastPath))
+        {
+            var parameters = new DialogParameters
+            {
+                ["OnContinue"] = new EventCallback<bool>(this, OnCacheDialogClosed)
+            };
+
+            var options = new DialogOptions
+            {
+                DisableBackdropClick = true,
+                NoHeader = true
+            };
+
+            ShowingCacheDialog = true;
+            var dialog = await DialogService.ShowAsync<CacheRestoreDialog>("", parameters, options);
+            var result = await dialog.Result;
+
+            if (result.Canceled || (result.Data is bool data && !data))
+            {
+                ShowingCacheDialog = false;
+                await JSRuntime.InvokeVoidAsync("localStorage.clear");
+                ShowLoginPopup = true;
+            }
+        }
+        else
+        {
+            ShowLoginPopup = true;
+        }
+    }
+
+    private void OnCacheDialogClosed(bool continueSession)
+    {
+        ShowingCacheDialog = false;
+        if (!continueSession)
+        {
+            ShowLoginPopup = true;
+        }
+        StateHasChanged();
+    }
+
+    private void ShowLoginForm()
+    {
+        ShowSignUp = false;
+        ShowLoginPopup = true;
+    }
+
+    private void ShowSignUpForm()
+    {
+        ShowLoginPopup = false;
+        ShowSignUp = true;
+    }
+
+    private async Task PerformLogin()
+    {
+        try
+        {
+            var session = await AuthService.SignInAsync(Email, Password);
+            if (session != null)
+            {
+                ShowLoginPopup = false;
+                NavigationManager.NavigateTo("/weather");
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Login failed: {ex.Message}";
+        }
+    }
+
+    private async Task PerformSignUp()
+    {
+        try
+        {
+            var session = await AuthService.SignUpAsync(Email, Password, FirstName, LastName);
+            if (session != null)
+            {
+                ShowSignUp = false;
+                NavigationManager.NavigateTo("/weather");
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Sign up failed: {ex.Message}";
+        }
+    }
+
+    private void NavigateToGuest()
+    {
+        ShowLoginPopup = false;
+        ShowSignUp = false;
+        NavigationManager.NavigateTo("/guest");
+    }
+}

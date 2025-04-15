@@ -1,0 +1,145 @@
+@using MudBlazor
+@using TheWeatherApp.Services
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<MudDialog Class="cache-dialog">
+    <DialogContent>
+        <div class="cache-content">
+            <MudIcon Icon="@Icons.Material.Filled.RestorePage" 
+                     Color="Color.Primary" 
+                     Size="Size.Large" 
+                     Class="restore-icon" />
+            <MudText Typo="Typo.h5" Class="mt-4">Restore Previous Session?</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2">Would you like to continue where you left off?</MudText>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <div class="cache-actions">
+            <MudButton OnClick="StartOver" 
+                      Variant="Variant.Text" 
+                      Color="Color.Error"
+                      Class="action-button">
+                Start Over
+            </MudButton>
+            <MudButton OnClick="Continue" 
+                      Variant="Variant.Filled" 
+                      Color="Color.Primary"
+                      Class="action-button">
+                Continue
+            </MudButton>
+        </div>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .cache-dialog {
+        backdrop-filter: blur(16px) saturate(180%);
+        -webkit-backdrop-filter: blur(16px) saturate(180%);
+        background-color: rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.125);
+        padding: 0 !important;
+        overflow: hidden;
+        max-width: 360px !important; /* Added max-width */
+        max-height: 320px !important; /* Added max-height */
+    }
+
+    .cache-content {
+        padding: 1.5rem; /* Reduced padding */
+        text-align: center;
+        color: white;
+    }
+
+    .restore-icon {
+        font-size: 36px; /* Reduced icon size */
+        margin-bottom: 0.75rem; /* Reduced margin */
+        animation: floatIcon 2s ease-in-out infinite;
+    }
+
+    .cache-actions {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 0.75rem;
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+        margin-top: -1rem; /* Added negative margin to lift it up */
+    }
+
+    .action-button {
+        min-width: 100px; /* Reduced button width */
+        border-radius: 6px;
+        text-transform: none;
+        font-weight: 500;
+        transition: transform 0.2s ease;
+    }
+
+    .action-button:hover {
+        transform: translateY(-2px);
+    }
+
+    @@keyframes floatIcon {
+        0%, 100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    ::deep .mud-dialog-content {
+        padding: 0 !important;
+    }
+
+    ::deep .mud-dialog-title {
+        background-color: transparent !important;
+    }
+
+    ::deep .mud-button-filled {
+        background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+    }
+
+    ::deep .mud-button-text {
+        color:rgb(0, 0, 0);
+    }
+</style>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnContinue { get; set; }
+
+    private async Task Continue()
+    {
+        try
+        {
+            var lastPath = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "lastPath");
+            if (!string.IsNullOrEmpty(lastPath))
+            {
+                await OnContinue.InvokeAsync(true);
+                MudDialog?.Close(DialogResult.Ok(true));
+                NavigationManager.NavigateTo(lastPath);
+            }
+            else
+            {
+                await OnContinue.InvokeAsync(false);
+                MudDialog?.Close(DialogResult.Ok(false));
+            }
+        }
+        catch (Exception)
+        {
+            await OnContinue.InvokeAsync(false);
+            MudDialog?.Close(DialogResult.Ok(false));
+        }
+    }
+
+    private async Task StartOver()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.clear");
+        await OnContinue.InvokeAsync(false);
+        MudDialog?.Close(DialogResult.Ok(false));
+        NavigationManager.NavigateTo("/");
+    }
+}

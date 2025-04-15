@@ -1,0 +1,18 @@
+@using TheWeatherApp.Services
+@inject IAuthService AuthService
+@page "/profile"
+
+<h1 class="text-2xl font-bold">Welcome @FirstName!</h1>
+
+@code {
+    private string FirstName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userDetails = await AuthService.GetUserDetailsAsync();
+        if (userDetails != null)
+        {
+            FirstName = userDetails.FirstName;
+        }
+    }
+}
