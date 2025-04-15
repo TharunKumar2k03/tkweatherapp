@@ -24,6 +24,14 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-EXPOSE 80
+# Create necessary directories and set permissions
+RUN mkdir -p /var/cache/nginx /var/run \
+    && chmod -R 755 /var/cache/nginx \
+    && chown -R nginx:nginx /var/cache/nginx /var/run
+
+EXPOSE 80 8080
+
+# Use non-root user
+USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]
