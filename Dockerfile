@@ -18,8 +18,11 @@ WORKDIR /usr/share/nginx/html
 # Copy the published files from build stage
 COPY --from=build /app/publish/wwwroot .
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Remove default nginx configuration first
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
